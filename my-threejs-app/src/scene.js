@@ -2,9 +2,24 @@ import * as THREE from 'three';
 import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
 import {GLTFLoader} from 'three/examples/jsm/loaders/GLTFLoader.js';
 import {RGBELoader} from 'three/examples/jsm/loaders/RGBELoader.js';
+import {XRControllerModelFactory} from 'three/examples/jsm/webxr/XRControllerModelFactory.js';
+import {XRButton} from 'three/examples/jsm/webxr/XRButton.js';
+
+let controller1, controller2;
+let controllerGrip1, controllerGrip2;
+let raycaster = new THREE.Raycaster();
+const intersected = [];
+const tempMatrix = new THREE.Matrix4();
+let group;
+const excludeObjects = ['Landscape', 'Plane', 'Terrain'];
+
+let rayLine1, rayLine2;
+
+const mouse = new THREE.Vector2();
+let selectedObject = null;
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb); // light blue sky
+scene.background = new THREE.Color(0x87ceeb);
 
 const camera = new THREE.PerspectiveCamera(
   75,
@@ -12,51 +27,86 @@ const camera = new THREE.PerspectiveCamera(
   0.1,
   100,
 );
-camera.position.set(5, 4, 6);
+camera.position.set(10, 10, 10);
 
 const renderer = new THREE.WebGLRenderer({antialias: true});
 renderer.shadowMap.enabled = true;
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-const axisHelper = new THREE.AxesHelper(5);
-scene.add(axisHelper);
+window.addEventListener('mousemove', (event) => {
+  if (!renderer.xr.isPresenting) {
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+  }
+});
+
+window.addEventListener('mousedown', (event) => {
+  if (!renderer.xr.isPresenting && event.button === 0) {
+    raycaster.setFromCamera(mouse, camera);
+    const intersections = raycaster.intersectObjects(group.children, true);
+    if (intersections.length > 0) {
+      const object = intersections[0].object;
+      if (!excludeObjects.includes(object.name)) {
+        selectedObject = object;
+        if (object.material && !object.material.emissive) {
+          object.material.emissive = new THREE.Color(0x000000);
+        }
+        if (object.material && object.material.emissive) {
+          object.material.emissive.b = 1;
+        }
+      }
+    }
+  }
+});
+
+window.addEventListener('mouseup', (event) => {
+  if (selectedObject) {
+    if (selectedObject.material && selectedObject.material.emissive) {
+      selectedObject.material.emissive.b = 0;
+      selectedObject.material.emissive.r = 1;
+    }
+    selectedObject = null;
+  }
+});
+
+// group the snowman so it can be grabbed as a single object
+const snowman = new THREE.Group();
+snowman.userData.grabbable = true;
 
 const material = new THREE.MeshStandardMaterial({color: 0xffffff});
 
 const bottom = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 32), material);
 bottom.position.y = 1;
-scene.add(bottom);
+snowman.add(bottom);
 
 const middle = new THREE.Mesh(new THREE.SphereGeometry(0.7, 32, 32), material);
 middle.position.y = 2.3;
-scene.add(middle);
+snowman.add(middle);
 
 const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 32, 32), material);
 head.position.y = 3.3;
-scene.add(head);
+snowman.add(head);
 
 const eyeMaterial = new THREE.MeshStandardMaterial({color: 0x000000});
 const eyeGeom = new THREE.SphereGeometry(0.07, 16, 16);
 
 const leftEye = new THREE.Mesh(eyeGeom, eyeMaterial);
 leftEye.position.set(-0.17, 3.38, 0.45);
-scene.add(leftEye);
+snowman.add(leftEye);
 
 const rightEye = new THREE.Mesh(eyeGeom, eyeMaterial);
 rightEye.position.set(0.17, 3.38, 0.45);
-scene.add(rightEye);
+snowman.add(rightEye);
 
 const noseMaterial = new THREE.MeshStandardMaterial({color: 0xffa500});
 const nose = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.6, 16), noseMaterial);
 nose.position.set(0, 3.25, 0.55);
 nose.rotation.x = Math.PI / 2;
-scene.add(nose);
+snowman.add(nose);
 
 const hatMaterial = new THREE.MeshStandardMaterial({color: 0x000000});
 
@@ -65,27 +115,23 @@ const hatBrim = new THREE.Mesh(
   hatMaterial,
 );
 hatBrim.position.y = 3.7;
-scene.add(hatBrim);
+snowman.add(hatBrim);
 
 const hatTop = new THREE.Mesh(
   new THREE.CylinderGeometry(0.4, 0.4, 0.8, 32),
   hatMaterial,
 );
 hatTop.position.y = 4.15;
-scene.add(hatTop);
+snowman.add(hatTop);
 
-const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-scene.add(ambient);
+group = new THREE.Group();
+scene.add(group);
 
-const sun = new THREE.DirectionalLight(0xffffff, 1);
-sun.position.set(5, 10, 7);
-sun.castShadow = true;
-scene.add(sun);
+scene.add(new THREE.AmbientLight(0xffffff, 0.4));
 
-const point = new THREE.PointLight(0xffffff, 0.5, 20);
-point.position.set(-4, 3, -4);
-point.castShadow = true;
-scene.add(point);
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(5, 10, 5);
+scene.add(dirLight);
 
 let terrainMesh = null;
 
@@ -180,8 +226,8 @@ function createProceduralTerrain() {
 
   const noise = ImprovedNoise();
   const position = geometry.attributes.position;
-  const scale = 0.03; // noise frequency
-  const amplitude = 8; // height scale
+  const scale = 0.03;
+  const amplitude = 8;
 
   for (let i = 0; i < position.count; i++) {
     const x = position.getX(i);
@@ -201,7 +247,6 @@ function createProceduralTerrain() {
   const grassTexture = loader.load(grassUrl);
   grassTexture.wrapS = grassTexture.wrapT = THREE.RepeatWrapping;
   grassTexture.repeat.set(40, 40);
-  grassTexture.encoding = THREE.sRGBEncoding;
 
   const terrainMat = new THREE.MeshStandardMaterial({
     map: grassTexture,
@@ -268,74 +313,319 @@ function getTerrainHeightAt(x, z) {
 }
 
 const baseHeight =
-  getTerrainHeightAt(bottom.position.x, bottom.position.z) || 0;
-const heightDelta = baseHeight; // bottom originally at y=1; new bottom should be 1 + baseHeight
-bottom.position.y = 1 + baseHeight;
-middle.position.y += heightDelta;
-head.position.y += heightDelta;
-leftEye.position.y += heightDelta;
-rightEye.position.y += heightDelta;
-nose.position.y += heightDelta;
-hatBrim.position.y += heightDelta;
-hatTop.position.y += heightDelta;
+  getTerrainHeightAt(snowman.position.x, snowman.position.z) || 0;
+snowman.position.y = baseHeight;
+group.add(snowman);
+console.log('Snowman added to group at position:', snowman.position);
 
 const pmremGenerator = new THREE.PMREMGenerator(renderer);
 pmremGenerator.compileEquirectangularShader();
 
 const hdrUrl =
   'https://cdn.jsdelivr.net/gh/mrdoob/three.js@master/examples/textures/equirectangular/royal_esplanade_1k.hdr';
-new RGBELoader()
-  .setDataType(THREE.UnsignedByteType)
-  .load(hdrUrl, (hdrTexture) => {
+new RGBELoader().setDataType(THREE.UnsignedByteType).load(
+  hdrUrl,
+  (hdrTexture) => {
     const envMap = pmremGenerator.fromEquirectangular(hdrTexture).texture;
     scene.environment = envMap;
-    scene.background = envMap;
     hdrTexture.dispose();
     pmremGenerator.dispose();
-  });
+  },
+  undefined,
+  (err) => {
+    console.warn('HDR environment map failed to load:', err);
+  },
+);
 
 const gltfLoader = new GLTFLoader();
 gltfLoader.load(
-  '/models/scene.gltf',
+  './models/scene.gltf',
   (gltf) => {
-    const model = gltf.scene;
+    const landscape = gltf.scene;
+    landscape.scale.set(1, 1, 1);
+    landscape.position.set(14, 0, -7);
 
-    model.scale.set(1, 1, 1);
-    model.position.set(14, 0, -7);
-    model.traverse((child) => {
-      if (child.isMesh) {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        if (child.material) child.material.envMapIntensity = 1.0;
+    landscape.traverse(function (node) {
+      if (node.material) {
+        node.material.side = THREE.DoubleSide;
+        node.castShadow = true;
+        node.receiveShadow = true;
       }
     });
 
-    const bbox = new THREE.Box3().setFromObject(model);
+    const bbox = new THREE.Box3().setFromObject(landscape);
     const minY = bbox.min.y;
     const center = new THREE.Vector3();
     bbox.getCenter(center);
     const terrainHeight = getTerrainHeightAt(
-      model.position.x + center.x,
-      model.position.z + center.z,
+      landscape.position.x + center.x,
+      landscape.position.z + center.z,
     );
     const deltaY = terrainHeight - minY;
-    model.position.y += deltaY || 0;
-    scene.add(model);
+    landscape.position.y += deltaY || 0;
+    group.add(landscape);
   },
   undefined,
   (err) => console.error('GLTF load error:', err),
 );
 
+gltfLoader.load(
+  './models/rock.glb',
+  (gltf) => {
+    const rockTemplate = gltf.scene;
+
+    const rockPositions = [
+      {x: -10, z: -5},
+      {x: 5, z: 10},
+      {x: 15, z: 5},
+      {x: -20, z: 15},
+      {x: 20, z: -15},
+    ];
+
+    rockPositions.forEach((pos, index) => {
+      const rock = rockTemplate.clone();
+      rock.name = `Rock_${index}`;
+
+      const terrainHeight = getTerrainHeightAt(pos.x, pos.z);
+      rock.position.set(pos.x, terrainHeight + 3, pos.z);
+
+      rock.traverse((node) => {
+        if (node.material) {
+          if (!node.material.emissive) {
+            node.material.emissive = new THREE.Color(0x000000);
+          }
+          node.castShadow = true;
+          node.receiveShadow = true;
+        }
+      });
+
+      group.add(rock);
+      console.log(
+        `Rock ${index} added at (${pos.x}, ${terrainHeight.toFixed(2)}, ${pos.z})`,
+      );
+    });
+  },
+  undefined,
+  (err) => console.error('Rock load error:', err),
+);
+
 window.addEventListener('resize', () => {
+  if (renderer.xr.isPresenting) return;
+
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
+function initVR() {
+  console.log('initVR called');
+
+  renderer.xr.enabled = true;
+
+  renderer.xr.addEventListener('sessionstart', () => {
+    console.log('✓ XR Session STARTED - immersive mode active');
+  });
+
+  renderer.xr.addEventListener('sessionend', () => {
+    console.log('XR Session ended');
+    group.position.set(0, 0, 0);
+  });
+
+  // Create and add XR button
+  const xrButton = XRButton.createButton(renderer, {
+    requiredFeatures: [],
+    optionalFeatures: [
+      'hit-test',
+      'dom-overlay',
+      'dom-overlay-for-handheld-ar',
+    ],
+    domOverlay: {root: document.body},
+  });
+
+  xrButton.addEventListener('click', () => {
+    console.log('XR Button clicked');
+  });
+
+  document.body.appendChild(xrButton);
+  console.log('XRButton created and appended');
+
+  const controllerModelFactory = new XRControllerModelFactory();
+
+  controller1 = renderer.xr.getController(0);
+  controller1.addEventListener('selectstart', onSelectStart);
+  controller1.addEventListener('selectend', onSelectEnd);
+  scene.add(controller1);
+  console.log('controller1 added to scene');
+
+  controllerGrip1 = renderer.xr.getControllerGrip(0);
+  controllerGrip1.add(
+    controllerModelFactory.createControllerModel(controllerGrip1),
+  );
+  scene.add(controllerGrip1);
+
+  controller2 = renderer.xr.getController(1);
+  controller2.addEventListener('selectstart', onSelectStart);
+  controller2.addEventListener('selectend', onSelectEnd);
+  scene.add(controller2);
+  console.log('controller2 added to scene');
+
+  controllerGrip2 = renderer.xr.getControllerGrip(1);
+  controllerGrip2.add(
+    controllerModelFactory.createControllerModel(controllerGrip2),
+  );
+  scene.add(controllerGrip2);
+
+  const rayGeometry = new THREE.BufferGeometry();
+  const rayPositions = new Float32Array([0, 0, 0, 0, 0, -10]); // 10 units forward
+  rayGeometry.setAttribute(
+    'position',
+    new THREE.BufferAttribute(rayPositions, 3),
+  );
+
+  const rayMaterial = new THREE.LineBasicMaterial({
+    color: 0x00ff00,
+    linewidth: 3,
+  });
+
+  rayLine1 = new THREE.Line(rayGeometry.clone(), rayMaterial.clone());
+  controller1.add(rayLine1);
+
+  rayLine2 = new THREE.Line(rayGeometry.clone(), rayMaterial.clone());
+  controller2.add(rayLine2);
+
+  console.log('Ray visualization added to controllers');
 }
 
-animate();
+function onSelectStart(event) {
+  const controller = event.target;
+  const intersections = getIntersections(controller);
+  console.log(
+    '🎮 selectstart - controller aim intersects:',
+    intersections.length,
+    'objects',
+  );
+
+  if (intersections.length > 0) {
+    const object = intersections[0].object;
+    console.log('🎯 Hit object:', object.name);
+    if (!excludeObjects.includes(object.name)) {
+      if (object.material && !object.material.emissive) {
+        object.material.emissive = new THREE.Color(0x000000);
+      }
+      if (object.material && object.material.emissive) {
+        object.material.emissive.r = 0;
+        object.material.emissive.g = 0;
+        object.material.emissive.b = 1;
+      }
+      controller.attach(object);
+      controller.userData.selected = object;
+      console.log('✋ Object GRABBED');
+    }
+  } else {
+    console.log('❌ No hit - aim at objects to grab them');
+  }
+}
+
+function onSelectEnd(event) {
+  const controller = event.target;
+
+  if (controller.userData.selected !== undefined) {
+    const object = controller.userData.selected;
+    console.log('🔓 Object RELEASED');
+    if (object.material && object.material.emissive) {
+      object.material.emissive.r = 1;
+      object.material.emissive.g = 0;
+      object.material.emissive.b = 0;
+    }
+    group.attach(object);
+    controller.userData.selected = undefined;
+  }
+
+  cleanIntersected();
+}
+
+function getIntersections(controller) {
+  controller.updateMatrixWorld();
+  raycaster.setFromXRController(controller);
+  return raycaster.intersectObjects(group.children, true);
+}
+
+function intersectObjects(controller) {
+  if (controller.userData.selected !== undefined) return;
+
+  const intersections = getIntersections(controller);
+
+  if (intersections.length > 0) {
+    const object = intersections[0].object;
+    if (!excludeObjects.includes(object.name)) {
+      if (object.material && !object.material.emissive) {
+        object.material.emissive = new THREE.Color(0x000000);
+      }
+      if (object.material && object.material.emissive) {
+        object.material.emissive.r = 1;
+        object.material.emissive.g = 0;
+        object.material.emissive.b = 0;
+      }
+      intersected.push(object);
+    }
+  }
+}
+
+function cleanIntersected() {
+  while (intersected.length > 0) {
+    const object = intersected.pop();
+    if (object.material && object.material.emissive) {
+      object.material.emissive.r = 0;
+      object.material.emissive.g = 0;
+      object.material.emissive.b = 0;
+    }
+  }
+}
+
+initVR();
+
+renderer.setAnimationLoop(function () {
+  if (renderer.xr.isPresenting) {
+    group.position.z = -5;
+    group.position.y = 0;
+  }
+
+  cleanIntersected();
+
+  if (!renderer.xr.isPresenting) {
+    group.position.set(0, 0, 0);
+
+    raycaster.setFromCamera(mouse, camera);
+    const intersections = raycaster.intersectObjects(group.children, true);
+
+    for (let i = 0; i < group.children.length; i++) {
+      const obj = group.children[i];
+      if (obj.material && obj.material.emissive && !selectedObject) {
+        obj.material.emissive.r = 0;
+        obj.material.emissive.g = 0;
+        obj.material.emissive.b = 0;
+      }
+    }
+
+    if (intersections.length > 0) {
+      const object = intersections[0].object;
+      if (!excludeObjects.includes(object.name) && !selectedObject) {
+        if (object.material && !object.material.emissive) {
+          object.material.emissive = new THREE.Color(0x000000);
+        }
+        if (object.material && object.material.emissive) {
+          object.material.emissive.r = 1;
+          object.material.emissive.g = 0;
+          object.material.emissive.b = 0;
+        }
+      }
+    }
+
+    controls.update();
+  } else {
+    intersectObjects(controller1);
+    intersectObjects(controller2);
+  }
+
+  renderer.render(scene, camera);
+});

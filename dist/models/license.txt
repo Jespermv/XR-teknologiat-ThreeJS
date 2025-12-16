@@ -1,11 +1,11 @@
 Model Information:
-* title:	(FREE) 1972 Datsun 240k GT
-* source:	https://sketchfab.com/3d-models/free-1972-datsun-240k-gt-b2303a552b444e5b8637fdf5169b41cb
-* author:	Karol Miklas (https://sketchfab.com/karolmiklas)
+* title:	Murphy '97 Cruiser - Low Poly model
+* source:	https://sketchfab.com/3d-models/murphy-97-cruiser-low-poly-model-31f0ac0f03ad42e3bbf236b3ecb2049e
+* author:	Daniel Zhabotinsky (https://sketchfab.com/DanielZhabotinsky)
 
 Model License:
-* license type:	CC-BY-SA-4.0 (http://creativecommons.org/licenses/by-sa/4.0/)
-* requirements:	Author must be credited. Modified versions must have the same license. Commercial use is allowed.
+* license type:	CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)
+* requirements:	Author must be credited. Commercial use is allowed.
 
 If you use this 3D model in your project be sure to copy paste this credit wherever you share it:
-This work is based on "(FREE) 1972 Datsun 240k GT" (https://sketchfab.com/3d-models/free-1972-datsun-240k-gt-b2303a552b444e5b8637fdf5169b41cb) by Karol Miklas (https://sketchfab.com/karolmiklas) licensed under CC-BY-SA-4.0 (http://creativecommons.org/licenses/by-sa/4.0/)
+This work is based on "Murphy '97 Cruiser - Low Poly model" (https://sketchfab.com/3d-models/murphy-97-cruiser-low-poly-model-31f0ac0f03ad42e3bbf236b3ecb2049e) by Daniel Zhabotinsky (https://sketchfab.com/DanielZhabotinsky) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/)

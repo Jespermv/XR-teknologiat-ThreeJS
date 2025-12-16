@@ -3,5 +3,5 @@ export default {
   build: {
     outDir: '../dist',
   },
-  base: './',
+  base: '/~jespermv/XR-teknologiat-ThreeJS_Vk3/',
 };
